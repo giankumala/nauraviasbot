@@ -12,43 +12,51 @@ from aiohttp import web
 # Load environment variables
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-HF_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
 
-# Kita beralih ke DeepAI API karena Hugging Face mematikan jalur gratisnya
-DEEPAI_API_KEY = os.getenv("DEEPAI_API_KEY")
-DEEPAI_URL = "https://api.deepai.org/api/torch-srgan"
+# Kita menggunakan Gradio Space publik (gratis, tanpa API Key) karena DeepAI dan HF sedang bermasalah
+import os
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import BufferedInputFile
+import logging
+from gradio_client import Client, handle_file
+import tempfile
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 logging.basicConfig(level=logging.INFO)
 
-import socket
-import requests
-
 def _upscale_sync(image_bytes: bytes) -> bytes:
-    """Synchronous function using DeepAI to bypass all HF issues"""
-    response = requests.post(
-        DEEPAI_URL,
-        headers={'api-key': DEEPAI_API_KEY},
-        files={'image': image_bytes}
-    )
-    
-    if response.status_code == 200:
-        output_url = response.json().get('output_url')
-        if not output_url:
-            raise Exception("DeepAI tidak mengembalikan URL gambar hasil.")
-        # Download gambar hasil dari URL tersebut
-        img_response = requests.get(output_url)
-        return img_response.content
-    elif response.status_code == 401:
-        raise Exception("API Key DeepAI tidak valid atau belum diisi.")
-    elif response.status_code == 429:
-        raise Exception("Server AI sedang sibuk. Mohon tunggu beberapa saat.")
-    else:
-        raise Exception(f"Error API (Code: {response.status_code}): {response.text}")
+    """Synchronous function using Gradio Client to a public free space"""
+    # Simpan byte gambar ke file sementara karena gradio_client butuh file path
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_in:
+        temp_in.write(image_bytes)
+        temp_in_path = temp_in.name
+
+    try:
+        # Gunakan Space publik (tidak perlu token sama sekali)
+        # Hapus HF_TOKEN dari environment agar tidak terblokir auth
+        os.environ.pop('HF_TOKEN', None)
+        
+        client = Client("Hockman/real-esrgan-upscaler")
+        # api_name /process_and_get_output mereturn tuple: (file_path, html_string)
+        result = client.predict(img=handle_file(temp_in_path), api_name="/process_and_get_output")
+        
+        out_path = result[0]
+        with open(out_path, "rb") as f:
+            out_bytes = f.read()
+            
+        return out_bytes
+    except Exception as e:
+        raise Exception(f"Error dari Server AI Publik: {str(e)}")
+    finally:
+        # Bersihkan file sementara
+        if os.path.exists(temp_in_path):
+            os.remove(temp_in_path)
 
 async def upscale_image(image_bytes: bytes) -> bytes:
-    """Send image to DeepAI API for upscaling"""
+    """Send image to public Gradio space for upscaling"""
     return await asyncio.to_thread(_upscale_sync, image_bytes)
 
 @dp.message(Command("start"))

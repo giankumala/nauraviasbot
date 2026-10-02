@@ -1,4 +1,4 @@
 aiogram
 aiohttp
 python-dotenv
-requests
+gradio_client
