@@ -14,12 +14,10 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 HF_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
 
-# API HF Model Endpoint
-# Menggunakan model Swin2SR untuk Upscaling x2 (mendukung API Inference Gratis)
-HF_API_URL = "https://router.huggingface.co/hf-inference/models/caidas/swin2SR-classical-sr-x2-64"
-HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"}
+# Kita beralih ke DeepAI API karena Hugging Face mematikan jalur gratisnya
+DEEPAI_API_KEY = os.getenv("DEEPAI_API_KEY")
+DEEPAI_URL = "https://api.deepai.org/api/torch-srgan"
 
-# Initialize bot and dispatcher
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 logging.basicConfig(level=logging.INFO)
@@ -28,19 +26,29 @@ import socket
 import requests
 
 def _upscale_sync(image_bytes: bytes) -> bytes:
-    """Synchronous function using requests to bypass aiohttp DNS bugs"""
-    response = requests.post(HF_API_URL, headers=HEADERS, data=image_bytes)
+    """Synchronous function using DeepAI to bypass all HF issues"""
+    response = requests.post(
+        DEEPAI_URL,
+        headers={'api-key': DEEPAI_API_KEY},
+        files={'image': image_bytes}
+    )
+    
     if response.status_code == 200:
-        return response.content
+        output_url = response.json().get('output_url')
+        if not output_url:
+            raise Exception("DeepAI tidak mengembalikan URL gambar hasil.")
+        # Download gambar hasil dari URL tersebut
+        img_response = requests.get(output_url)
+        return img_response.content
+    elif response.status_code == 401:
+        raise Exception("API Key DeepAI tidak valid atau belum diisi.")
     elif response.status_code == 429:
-        raise Exception("Server AI sedang sibuk (Rate Limit). Mohon tunggu sekitar 1-2 menit lalu coba lagi.")
-    elif response.status_code == 503:
-        raise Exception("Server sedang membangunkan AI (Cold Start). Silakan coba kirim ulang gambar Anda dalam 20 detik.")
+        raise Exception("Server AI sedang sibuk. Mohon tunggu beberapa saat.")
     else:
-        raise Exception(f"Error dari API HF (Code: {response.status_code}): {response.text}")
+        raise Exception(f"Error API (Code: {response.status_code}): {response.text}")
 
 async def upscale_image(image_bytes: bytes) -> bytes:
-    """Send image to Hugging Face API for upscaling"""
+    """Send image to DeepAI API for upscaling"""
     return await asyncio.to_thread(_upscale_sync, image_bytes)
 
 @dp.message(Command("start"))
