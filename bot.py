@@ -24,9 +24,13 @@ bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 logging.basicConfig(level=logging.INFO)
 
+import socket
+
 async def upscale_image(image_bytes: bytes) -> bytes:
     """Send image to Hugging Face API for upscaling"""
-    async with aiohttp.ClientSession() as session:
+    # Menggunakan TCPConnector IPv4 untuk menghindari error DNS di Render
+    connector = aiohttp.TCPConnector(family=socket.AF_INET)
+    async with aiohttp.ClientSession(connector=connector) as session:
         async with session.post(HF_API_URL, headers=HEADERS, data=image_bytes) as response:
             if response.status == 200:
                 return await response.read()
