@@ -16,7 +16,7 @@ HF_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
 
 # API HF Model Endpoint
 # Menggunakan model Swin2SR untuk Upscaling x2 (mendukung API Inference Gratis)
-HF_API_URL = "https://api-inference.huggingface.co/models/caidas/swin2SR-classical-sr-x2-64"
+HF_API_URL = "https://router.huggingface.co/hf-inference/models/caidas/swin2SR-classical-sr-x2-64"
 HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"}
 
 # Initialize bot and dispatcher
