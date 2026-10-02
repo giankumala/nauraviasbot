@@ -35,11 +35,10 @@ def _upscale_sync(image_bytes: bytes) -> bytes:
         temp_in_path = temp_in.name
 
     try:
-        # Gunakan Space publik (tidak perlu token sama sekali)
-        # Hapus HF_TOKEN dari environment agar tidak terblokir auth
-        os.environ.pop('HF_TOKEN', None)
+        # Gunakan Hugging Face token pengguna untuk mendapatkan kuota ZeroGPU gratis
+        hf_token = os.getenv('HUGGINGFACE_API_KEY')
+        client = Client("sczhou/CodeFormer", token=hf_token)
         
-        client = Client("sczhou/CodeFormer")
         # CodeFormer memiliki banyak opsi untuk memaksimalkan kualitas
         result = client.predict(
             image=handle_file(temp_in_path),
