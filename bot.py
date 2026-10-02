@@ -39,10 +39,19 @@ def _upscale_sync(image_bytes: bytes) -> bytes:
         # Hapus HF_TOKEN dari environment agar tidak terblokir auth
         os.environ.pop('HF_TOKEN', None)
         
-        client = Client("Hockman/real-esrgan-upscaler")
-        # api_name /process_and_get_output mereturn tuple: (file_path, html_string)
-        result = client.predict(img=handle_file(temp_in_path), api_name="/process_and_get_output")
+        client = Client("sczhou/CodeFormer")
+        # CodeFormer memiliki banyak opsi untuk memaksimalkan kualitas
+        result = client.predict(
+            image=handle_file(temp_in_path),
+            face_align=True,
+            background_enhance=True,
+            face_upsample=True,
+            upscale=4,  # <-- Peningkatan 4x lipat (maksimal)
+            codeformer_fidelity=0.5,
+            api_name="/inference"
+        )
         
+        # result dari /inference adalah tuple: (file_path, text)
         out_path = result[0]
         with open(out_path, "rb") as f:
             out_bytes = f.read()
