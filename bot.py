@@ -25,23 +25,23 @@ dp = Dispatcher()
 logging.basicConfig(level=logging.INFO)
 
 import socket
+import requests
+
+def _upscale_sync(image_bytes: bytes) -> bytes:
+    """Synchronous function using requests to bypass aiohttp DNS bugs"""
+    response = requests.post(HF_API_URL, headers=HEADERS, data=image_bytes)
+    if response.status_code == 200:
+        return response.content
+    elif response.status_code == 429:
+        raise Exception("Server AI sedang sibuk (Rate Limit). Mohon tunggu sekitar 1-2 menit lalu coba lagi.")
+    elif response.status_code == 503:
+        raise Exception("Server sedang membangunkan AI (Cold Start). Silakan coba kirim ulang gambar Anda dalam 20 detik.")
+    else:
+        raise Exception(f"Error dari API HF (Code: {response.status_code}): {response.text}")
 
 async def upscale_image(image_bytes: bytes) -> bytes:
     """Send image to Hugging Face API for upscaling"""
-    # Menggunakan TCPConnector IPv4 untuk menghindari error DNS di Render
-    connector = aiohttp.TCPConnector(family=socket.AF_INET)
-    async with aiohttp.ClientSession(connector=connector) as session:
-        async with session.post(HF_API_URL, headers=HEADERS, data=image_bytes) as response:
-            if response.status == 200:
-                return await response.read()
-            elif response.status == 429:
-                raise Exception("Server AI sedang sibuk (Rate Limit). Mohon tunggu sekitar 1-2 menit lalu coba lagi.")
-            elif response.status == 503:
-                # 503 biasanya Model sedang di-load ke memory server HF (Cold Start)
-                raise Exception("Server sedang membangunkan AI (Cold Start). Silakan coba kirim ulang gambar Anda dalam 20 detik.")
-            else:
-                err_text = await response.text()
-                raise Exception(f"Error dari API HF (Code: {response.status}): {err_text}")
+    return await asyncio.to_thread(_upscale_sync, image_bytes)
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
